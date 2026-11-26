@@ -1,0 +1,270 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XO Arena - Gaming</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#0b0b18;color:white;
+ font-family:Arial,sans-serif;
+}
+header{
+ padding:20px;display:flex;justify-content:space-between;
+ align-items:center;background:#151429;
+ border-bottom:1px solid #292547;
+}
+.logo{font-size:25px;font-weight:900;color:#a78bfa}
+main{max-width:900px;margin:auto;padding:20px}
+.card{
+ background:#17162b;padding:22px;border-radius:18px;
+ margin-bottom:20px;border:1px solid #302b50;
+}
+h2{color:#bba6ff}
+input{
+ width:100%;padding:14px;margin:8px 0;
+ background:#24223b;color:white;border:1px solid #454066;
+ border-radius:10px;font-size:16px;
+}
+button{
+ padding:12px 18px;border:0;border-radius:10px;
+ background:#8057ed;color:white;font-weight:bold;
+ cursor:pointer;margin:5px;
+}
+button:hover{background:#a080ff}
+.secondary{background:#302c4d}
+#game{
+ display:grid;grid-template-columns:repeat(3,1fr);
+ gap:10px;max-width:360px;margin:20px auto;
+}
+.cell{
+ aspect-ratio:1;background:#24213e;border-radius:15px;
+ display:grid;place-items:center;font-size:48px;
+ font-weight:bold;color:#a78bfa;cursor:pointer;
+}
+.stats{display:flex;gap:12px;flex-wrap:wrap}
+.stat{
+ flex:1;min-width:130px;background:#24213e;
+ padding:15px;border-radius:12px;
+}
+.hidden{display:none}
+#message{text-align:center;color:#c4b5fd;font-size:18px}
+</style>
+</head>
+<body>
+
+<header>
+ <div class="logo">✦ XO ARENA</div>
+ <div id="userLabel">Guest</div>
+</header>
+
+<main>
+
+<section class="card" id="auth">
+ <h2>Welcome to XO Arena</h2>
+ <p>Create your account and receive 10 demo coins.</p>
+ <input id="username" placeholder="Username">
+ <input id="password" type="password" placeholder="Password (8+ characters)">
+ <button onclick="register()">Sign Up</button>
+ <button class="secondary" onclick="login()">Login</button>
+ <p id="authMessage"></p>
+</section>
+
+<section class="hidden" id="dashboard">
+
+ <div class="card">
+  <h2>My Dashboard</h2>
+  <div class="stats">
+   <div class="stat">
+    <small>My Coins</small>
+    <h2 id="coins">0</h2>
+   </div>
+   <div class="stat">
+    <small>Account</small>
+    <h3 id="account">User</h3>
+   </div>
+  </div>
+ </div>
+
+ <div class="card">
+  <h2>Wallet - Demo Only</h2>
+  <input type="number" id="amount" placeholder="Enter demo coins">
+  <button onclick="deposit()">Demo Deposit</button>
+  <button class="secondary" onclick="withdraw()">Demo Withdraw</button>
+  <button class="secondary" onclick="history()">History</button>
+  <p id="walletMessage"></p>
+  <div id="historyList"></div>
+ </div>
+
+ <div class="card">
+  <h2>🎮 Tic Tac Toe</h2>
+  <p id="message">Your turn: X</p>
+  <div id="game">
+   <div class="cell" onclick="play(0)"></div>
+   <div class="cell" onclick="play(1)"></div>
+   <div class="cell" onclick="play(2)"></div>
+   <div class="cell" onclick="play(3)"></div>
+   <div class="cell" onclick="play(4)"></div>
+   <div class="cell" onclick="play(5)"></div>
+   <div class="cell" onclick="play(6)"></div>
+   <div class="cell" onclick="play(7)"></div>
+   <div class="cell" onclick="play(8)"></div>
+  </div>
+  <center>
+   <button onclick="resetGame()">New Game</button>
+  </center>
+ </div>
+
+ <button class="secondary" onclick="logout()">Logout</button>
+</section>
+
+</main>
+
+<script>
+let token = localStorage.getItem("xo_token") || "";
+let board = Array(9).fill("");
+let turn = "X";
+let finished = false;
+
+async function api(url, method="GET", data=null){
+ const options = {
+  method,
+  headers: {"Content-Type":"application/json"}
+ };
+ if(token) options.headers.Authorization = "Bearer "+token;
+ if(data) options.body = JSON.stringify(data);
+
+ const response = await fetch("/api/"+url,options);
+ const result = await response.json();
+
+ if(!response.ok) throw new Error(result.detail || "Something went wrong");
+ return result;
+}
+
+async function register(){
+ try{
+  const result = await api("register","POST",{
+   username: username.value,
+   password: password.value
+  });
+  authMessage.textContent = result.message;
+  await login();
+ }catch(e){authMessage.textContent=e.message}
+}
+
+async function login(){
+ try{
+  const result = await api("login","POST",{
+   username: username.value,
+   password: password.value
+  });
+  token=result.token;
+  localStorage.setItem("xo_token",token);
+  await loadDashboard();
+ }catch(e){authMessage.textContent=e.message}
+}
+
+async function loadDashboard(){
+ try{
+  const data=await api("me");
+  auth.classList.add("hidden");
+  dashboard.classList.remove("hidden");
+  userLabel.textContent=data.username;
+  account.textContent=data.username;
+  coins.textContent=data.coins;
+ }catch(e){
+  logout();
+ }
+}
+
+async function deposit(){
+ try{
+  const amountValue=Number(amount.value);
+  if(!Number.isInteger(amountValue)||amountValue<=0) throw new Error("Enter valid coins");
+  await api("wallet/deposit","POST",{coins:amountValue});
+  walletMessage.textContent="Demo coins added!";
+  await loadDashboard();
+ }catch(e){walletMessage.textContent=e.message}
+}
+
+async function withdraw(){
+ try{
+  const amountValue=Number(amount.value);
+  if(!Number.isInteger(amountValue)||amountValue<=0) throw new Error("Enter valid coins");
+  const result=await api("wallet/withdraw","POST",{coins:amountValue});
+  walletMessage.textContent=result.message;
+  await loadDashboard();
+ }catch(e){walletMessage.textContent=e.message}
+}
+
+async function history(){
+ try{
+  const result=await api("wallet/history");
+  historyList.innerHTML="";
+  result.transactions.forEach(t=>{
+   const p=document.createElement("p");
+   p.textContent=t.type+" - "+t.coins+" coins - "+t.status;
+   historyList.appendChild(p);
+  });
+ }catch(e){walletMessage.textContent=e.message}
+}
+
+function logout(){
+ token="";
+ localStorage.removeItem("xo_token");
+ dashboard.classList.add("hidden");
+ auth.classList.remove("hidden");
+ userLabel.textContent="Guest";
+}
+
+function checkWinner(){
+ const wins=[
+ [0,1,2],[3,4,5],[6,7,8],
+ [0,3,6],[1,4,7],[2,5,8],
+ [0,4,8],[2,4,6]
+ ];
+ return wins.some(line=>line.every(i=>board[i]===turn));
+}
+
+function play(i){
+ if(board[i]||finished)return;
+ board[i]=turn;
+ render();
+
+ if(checkWinner()){
+  message.textContent=turn+" Wins!";
+  finished=true;
+  return;
+ }
+
+ if(board.every(Boolean)){
+  message.textContent="It's a Draw!";
+  finished=true;
+  return;
+ }
+
+ turn=turn==="X"?"O":"X";
+ message.textContent="Your turn: "+turn;
+}
+
+function render(){
+ document.querySelectorAll(".cell").forEach((cell,i)=>{
+  cell.textContent=board[i];
+ });
+}
+
+function resetGame(){
+ board=Array(9).fill("");
+ turn="X";
+ finished=false;
+ render();
+ message.textContent="Your turn: X";
+}
+
+if(token)loadDashboard();
+</script>
+</body>
+     </html>
+     
